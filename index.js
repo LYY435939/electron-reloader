@@ -1,6 +1,7 @@
 'use strict';
 const {inspect} = require('util');
 const path = require('path');
+const childProcess = require('child_process');
 const electron = require('electron');
 const chokidar = require('chokidar');
 const isDev = require('electron-is-dev');
@@ -29,6 +30,24 @@ function getMainProcessPaths(topModuleObject, cwd) {
 	getPaths(topModuleObject);
 
 	return paths;
+}
+
+function relaunchElectronApp() {
+	if (process.defaultApp) {
+		if (typeof electron.app.releaseSingleInstanceLock === 'function') {
+			electron.app.releaseSingleInstanceLock();
+		}
+
+		childProcess.spawn(process.argv[0], process.argv.slice(1), {
+			cwd: process.cwd(),
+			env: process.env,
+			stdio: 'inherit'
+		});
+	} else {
+		electron.app.relaunch();
+	}
+
+	electron.app.exit(0);
 }
 
 module.exports = (moduleObject, options = {}) => {
@@ -87,11 +106,9 @@ module.exports = (moduleObject, options = {}) => {
 			// Prevent multiple instances of Electron from being started due to the change
 			// handler being called multiple times before the original instance exits.
 			if (!isRelaunching) {
-				electron.app.relaunch();
-				electron.app.exit(0);
+				isRelaunching = true;
+				relaunchElectronApp();
 			}
-
-			isRelaunching = true;
 		} else {
 			for (const window_ of electron.BrowserWindow.getAllWindows()) {
 				window_.webContents.reloadIgnoringCache();
